@@ -1,0 +1,430 @@
+
+	/*
+	
+		OSもどき
+
+	@author		Humi@bass_clef_
+	@e-mail		bassclef.nico@gmail.com
+	*/
+
+
+	#define		global		APP_NAME	"ヘォンドウズ10"
+	#packopt	name		APP_NAME
+	#packopt	icon		"heondows.ico"
+	#packopt	hide		1
+	#bootopt	hsp64		0
+
+	// u-global
+	#include DIR_HSPWORK\\list.as
+	// u-local
+	#include DIR_HSPWORK\\fileio.as
+	#include DIR_HSPWORK\\fpsex.as
+	#include DIR_HSPWORK\\keys.as
+	#include DIR_HSPWORK\\gui.as
+	#include DIR_HSPWORK\\sound.as
+	#include DIR_HSPWORK\\window.as
+
+	// global
+	// local
+
+	// definition
+	#enum	W_MAIN	= 0
+	#enum	W_WHITE
+	#enum	W_BLACK
+	#enum	W_WORK
+	#enum	KEY_MAIN	= 0
+	#enum	KEY_SUB
+	#enum	KEY_MAX
+	#enum	OSM_INIT	= 0
+	#enum	OSM_DESKTOP
+	#define	PRODUCT_KEY	"Hot-Soup-Processer-3-5"
+
+	#ifdef _DEBUG
+	gsel 0, -1
+	#endif
+
+	initMain
+	
+fpsMain
+	calcMain
+	drawMain
+	fpsLoop
+
+#deffunc calcMain
+	w = mousew
+	mx = mousex
+	my = mousey
+	frameCount = (frameCount+1) \ INT_MAX
+
+	// キー
+	calcKeys
+	downingKey = false
+	downedKey = false
+	if keyDowned(keys.KEY_MAIN)		:downedKey = keys.KEY_MAIN
+	if keyDowned(keys.KEY_SUB)		:downedKey = keys.KEY_SUB
+	if keyDowning(keys.KEY_MAIN)	:downingKey = keys.KEY_MAIN
+	if keyDowning(keys.KEY_SUB)		:downingKey = keys.KEY_SUB
+
+	// GUI
+	calcGUI mx, my, false != downedKey, false != downingKey, w < 0, 0 < w
+
+	// app
+	if -1 == mx || -1 == my {
+		pos omx, omy
+	} else {
+		pos mx, my
+	}
+	moveGUIObject guiCursorId
+
+	// Heondowsの起動モードによって動作を変える
+	gosub label_os_mode_calc.osMode
+
+	return
+*label_om_calc_initialize
+	watchNextButtonId = -1
+	if 0 <= installLayerCount && installLayerCount < length(watchNextButtonIdList) {
+		watchNextButtonId = watchNextButtonIdList.installLayerCount
+	}
+	switch installLayerCount
+	case 1
+		if -1 != watchNextButtonId :if downedButton(watchNextButtonId) {
+			s = getGUIText(guiProductKeyId)
+			if PRODUCT_KEY != s {
+				changeGUIText guiWarningProductKeyId, "※プロダクトキーが間違っています"
+				swbreak
+			} else {
+				nextInstallLayer
+			}
+		}
+		swbreak
+	case 4
+		changeGUIText guiInstallFileCopyingId, "Heondows ファイルのコピー中("+ strf("%d", percent) +"%)"
+		changeGUIText guiInstallReserveId, "インストールするファイルの準備中("+ strf("%d", (percent/5)\99) +"%)"
+		changeGUIText guiInstallFunctionId, "機能をインストールしています("+ strf("%d", percent/10) +"%)"
+		changeGUIText guiInstallUpdateProgramId, "更新プログラムをインストールしています("+ strf("%d", 50 + sin( M_PI*2 / 100 * (percent/11) ) * 50) +"%)"
+		changeGUIText guiInstallFinalId, "処理が完了します(0%)"
+		percent += 0.2
+		#ifdef _debug
+		if 7 <= percent {
+		#else
+		if 777 <= percent {
+		#endif
+			nextInstallLayer
+			percent = 0
+		}
+		swbreak
+	case 5
+		percent++
+		if 200 < percent {
+			#ifndef _debug
+			saveFileName dir_my +"init.ini" :fileId = stat
+			pushFileData OSM_DESKTOP
+			saveToFile
+			closeFile
+			#endif
+			exec ""+ APP_NAME +".exe"
+			end
+		}
+		swbreak
+	default
+		if -1 != watchNextButtonId :if downedButton(watchNextButtonId) {
+			nextInstallLayer
+		}
+		swbreak
+	swend
+	return
+#deffunc nextInstallLayer
+	if installLayerCount < length(watchNextButtonIdList) {
+		if guiInstallNextId == watchNextButtonIdList(installLayerCount+1) {
+			setGUIParent guiInstallNextId, guiLayerInstallId(installLayerCount+1)
+			setGUIParent guiInstallSkipId, guiLayerInstallId(installLayerCount+1)
+		} else {
+			setGUIParent guiInstallNextId, -1
+			setGUIParent guiInstallSkipId, -1
+		}
+	}
+	destroyGUIObject guiLayerInstallId.installLayerCount
+	installLayerCount++
+	return
+*label_om_calc_desktop
+	if downedButton(guiStartId) {
+		dialog "試用版ではこれ以上の機能を試すことはできません。", 0, APP_NAME
+	}
+	return
+
+#deffunc drawMain
+	redraw 0
+	colorwhite :boxf :color
+	drawGUI
+	redraw 1
+	return
+	
+#deffunc initMain
+	
+	dir_my = dir_cur +"\\data\\"
+
+	initFileio
+	loadFile dir_my +"init.ini"
+	if -1 == stat {
+		osMode = OSM_INIT
+	} else {
+		osMode = popFileData()
+	}
+	closeFile
+	
+	initMainWidth = 640
+	initMainHeight = 480
+	fontSize = 14
+	fhSize = fontSize/2
+	xMargin = 5
+	yMargin = 5
+	omx = ginfo_dispx
+	omy = ginfo_dispy
+	label_os_mode_boot = *label_om_boot_initialize, *label_om_boot_desktop
+	label_os_mode_calc = *label_om_calc_initialize, *label_om_calc_desktop
+	percent = 0.0
+	
+	initFPS 60, 10
+	initWindow
+	windowList.W_MAIN = getWindowId(initMainWidth, initMainHeight)
+	windowList.W_WORK = getWindowId(ginfo_dispx, ginfo_dispy)
+	windowList.W_WHITE = getWindowId(ginfo_dispx, ginfo_dispy)
+	windowList.W_BLACK = getWindowId(ginfo_dispx, ginfo_dispy)
+	
+	initKeys
+	keys.KEY_MAIN		= 1
+	keys.KEY_SUB		= 2
+	repeat KEY_MAX
+		registoryKey keys.cnt, 1, 10
+	loop
+
+	// windows
+	buffer windowList.W_WORK, getWindowWidth(windowList.W_WORK), getWindowHeight(windowList.W_WORK)
+	font msgothic, fontSize
+	
+	buffer windowList.W_WHITE, getWindowWidth(windowList.W_WHITE), getWindowHeight(windowList.W_WHITE)
+	colorwhite :boxf
+	
+	buffer windowList.W_BLACK, getWindowWidth(windowList.W_BLACK), getWindowHeight(windowList.W_BLACK)
+	color :boxf
+	
+	screen windowList.W_MAIN, ginfo_dispx, ginfo_dispy, 0, (ginfo_dispx-getWindowWidth(windowList.W_MAIN))/2, (ginfo_dispy-getWindowHeight(windowList.W_MAIN))/2, getWindowWidth(windowList.W_MAIN), getWindowHeight(windowList.W_MAIN)
+	title APP_NAME
+	font msgothic, fontSize
+//	mouse -1, -1
+	
+	initGUI windowList.W_BLACK, windowList.W_WHITE, windowList.W_WORK, fhSize, xMargin, yMargin
+	color 1, 1, 1
+
+	gosub label_os_mode_boot.osMode
+	
+	colorwhite
+	mouseImgId = makeImageBuffer(dir_my + "mouse.png")
+	guiOption getWindowWidth(mouseImgId), getWindowHeight(mouseImgId), GUI_S_SHOW
+	pos omx, omy
+	makeImageButton mouseImgId, getWindowWidth(mouseImgId), getWindowHeight(mouseImgId) :guiCursorId = stat
+	setGUIBackAlpha guiCursorId, 0
+	return
+
+*label_om_boot_initialize
+	loadFile dir_my + "licence.txt" :fileId = stat
+	licenceTxtString = getFileRawData(fileId)
+	closeFile
+	
+	color 1, 1, 1
+	guiOption 170, 20, GUI_S_SHOW, windowList.W_WHITE, windowList.W_BLACK
+	pos 380, 440 :makeButton "スキップはできません(S)" :guiInstallSkipId = stat
+	guiOption 60, 20, GUI_S_SHOW, windowList.W_WHITE, windowList.W_BLACK
+	pos 560, 440 :makeButton "次へ(N)" :guiInstallNextId = stat
+	
+	/* install layer 5 */
+	guiOption ginfo_winx, ginfo_winy, GUI_S_SHOW
+	inWindowId.5 = getWindowId(ginfo_dispx, ginfo_dispy)
+	pos 0, 0 :makeWindow "", ginfo_winx, ginfo_winy, inWindowId.5 :guiLayerInstallId.5 = stat
+	
+	sel = ginfo_sel
+	welcomeWindowId = getBufferId(640, 480, true)
+	buffer welcomeWindowId, getWindowWidth(welcomeWindowId), getWindowHeight(welcomeWindowId)
+	color 200, 255, 200 :boxf
+	gsel sel
+	guiOption getWindowWidth(welcomeWindowId), getWindowHeight(welcomeWindowId), GUI_S_SHOW
+	pos 0, 0 :makeImageButton welcomeWindowId, getWindowWidth(welcomeWindowId), getWindowHeight(welcomeWindowId)
+	setGUIParent stat, guiLayerInstallId.5
+	
+	logoWelcomeImgId = makeImageBuffer(dir_my + "logo.png")
+	guiOption getWindowWidth(logoWelcomeImgId), getWindowHeight(logoWelcomeImgId), GUI_S_SHOW
+	colorwhite
+	pos (ginfo_winx - getWindowWidth(logoWelcomeImgId))/2, (ginfo_winy - getWindowHeight(logoWelcomeImgId))/3 :makeImageButton logoWelcomeImgId, getWindowWidth(logoWelcomeImgId), getWindowHeight(logoWelcomeImgId) :logoWelcomeImgId = stat
+	setGUIBackAlpha logoWelcomeImgId, 0
+	setGUIParent logoWelcomeImgId, guiLayerInstallId.5
+	guiOption 560, 30, GUI_S_SHOW
+	color 1, 1, 1
+	pos 40, ginfo_winy/2 :makeButton "ようこそ" :guiWelcomeId = stat
+	setGUIBackAlpha guiWelcomeId, 0
+	setGUIParent guiWelcomeId, guiLayerInstallId.5
+	watchNextButtonIdList.5 = -1
+	
+	
+	/* install layer 4 */
+	guiOption ginfo_winx, ginfo_winy, GUI_S_SHOW
+	inWindowId.4 = getWindowId(ginfo_dispx, ginfo_dispy)
+	pos 0, 0 :makeWindow "", ginfo_winx, ginfo_winy, inWindowId.4 :guiLayerInstallId.4 = stat
+	guiOption 560, 30, GUI_S_SHOW
+	color 0, 0, 175
+	pos 40, 20 :makeText "Heondows をインストールしています" :guiInstallFinalInfoId.0 = stat
+	color 1, 1, 1
+	pos 40, 100 :makeText "PCは数回再起動しません。代わりにアプリが再起動します。少し?お待ち下さい。" :guiInstallFinalInfoId.length(guiInstallFinalInfoId) = stat
+	pos 60, 150
+	makeText "Heondows ファイルのコピー中" :guiInstallFileCopyingId = stat
+	guiInstallFinalInfoId.length(guiInstallFinalInfoId) = guiInstallFileCopyingId
+	makeText "インストールするファイルの準備中" :guiInstallReserveId = stat
+	guiInstallFinalInfoId.length(guiInstallFinalInfoId) = guiInstallReserveId
+	makeText "機能をインストールしています" :guiInstallFunctionId = stat
+	guiInstallFinalInfoId.length(guiInstallFinalInfoId) = guiInstallFunctionId
+	makeText "更新プログラムをインストールしています" :guiInstallUpdateProgramId = stat
+	guiInstallFinalInfoId.length(guiInstallFinalInfoId) = guiInstallUpdateProgramId
+	makeText "処理が完了します" :guiInstallFinalId = stat
+	guiInstallFinalInfoId.length(guiInstallFinalInfoId) = guiInstallFinalId
+	watchNextButtonIdList.4 = -1
+	
+	repeat length(guiInstallFinalInfoId)
+		setGUIParent guiInstallFinalInfoId.cnt, guiLayerInstallId.4
+		setGUIBackAlpha guiInstallFinalInfoId.cnt, 0
+	loop
+	/**/
+	
+	/* install layer 3 */
+	guiOption ginfo_winx, ginfo_winy, GUI_S_SHOW
+	inWindowId.3 = getWindowId(ginfo_dispx, ginfo_dispy)
+	pos 0, 0 :makeWindow "", ginfo_winx, ginfo_winy, inWindowId.3 :guiLayerInstallId.3 = stat
+	
+	guiOption 560, 30, GUI_S_SHOW
+	pos 40, 20
+	color 0, 0, 175
+	makeText "インストールの種類を選ぶも何も一つしかありません。" :guiInstallTypeInfoId.0 = stat
+	guiOption 560, 100, GUI_S_SHOW
+	pos 40, 100
+	makeButton ""
+	watchNextButtonIdList.3 = stat
+	guiInstallTypeInfoId.length(guiInstallTypeInfoId) = watchNextButtonIdList.3
+	color 100, 160, 200
+	pos 40, 100
+	makeText "カスタム: Heondowsのみをインストールする (詳細設定なんてありません。)(C)\nこのオプションでは、ファイル、設定、アプリが Heondows に引き継がれません。ドライブとパーティションなんてものは存在しませんがそれらに変更を加える場合は、インストール ディスクなんてものはありませんが それをなんとか起動してください。手順を続ける前にファイルのバックアップすることを。進めたり進めなかったりします。"
+	guiInstallTypeInfoId.length(guiInstallTypeInfoId) = stat
+	
+	guiOption 560, 30, GUI_S_SHOW
+	pos 40, 400
+	makeText "ヘルプは表示できません(H)" :guiInstallTypeInfoId.length(guiInstallTypeInfoId) = stat
+	
+	repeat length(guiInstallTypeInfoId)
+		setGUIParent guiInstallTypeInfoId.cnt, guiLayerInstallId.3
+		if GUI_T_BUTTON == getGUIObjectType(guiInstallTypeInfoId.cnt) :continue
+		setGUIBackAlpha guiInstallTypeInfoId.cnt, 0
+	loop
+	/**/
+	
+	/* install layer 2 */
+	guiOption ginfo_winx, ginfo_winy, GUI_S_SHOW
+	inWindowId.2 = getWindowId(ginfo_dispx, ginfo_dispy)
+	pos 0, 0 :makeWindow "", ginfo_winx, ginfo_winy, inWindowId.2 :guiLayerInstallId.2 = stat
+	
+	guiOption 560, 30, GUI_S_SHOW
+	pos 40, 20
+	color 0, 0, 175
+	makeText "ライセンス条項" :guiLicenceInfoId.0 = stat
+	color 1, 1, 1
+	guiOption 560, 300, GUI_S_SHOW
+	pos 40, 60 :makeList licenceTxtString :guiLicenceInfoId.length(guiLicenceInfoId) = stat
+	guiOption 500, 30, GUI_S_SHOW
+	pos 40, 380
+	makeText "同意します(A)...\n\nも何もreadme.txt読んで実行した時点で同意したはずだからチェックボタンとかいらないよね？" :guiLicenceInfoId.length(guiLicenceInfoId) = stat
+	
+	repeat length(guiLicenceInfoId)
+		setGUIParent guiLicenceInfoId.cnt, guiLayerInstallId.2
+		if GUI_T_LIST == getGUIObjectType(guiLicenceInfoId.cnt) :continue
+		setGUIBackAlpha guiLicenceInfoId.cnt, 0
+	loop
+	watchNextButtonIdList.2 = guiInstallNextId
+	/**/
+	
+	/* install layer 1 */
+	guiOption ginfo_winx, ginfo_winy, GUI_S_SHOW
+	inWindowId.1 = getWindowId(ginfo_dispx, ginfo_dispy)
+	pos 0, 0 :makeWindow "", ginfo_winx, ginfo_winy, inWindowId.1 :guiLayerInstallId.1 = stat
+	
+	guiOption 560, 30, GUI_S_SHOW
+	pos 40, 0
+	color 0, 0, 175
+	makeText "\nHeondows のライセンス認証を行うためのプロダクト キーを入力してください" :guiProductKeyInfoId.0 = stat
+	color 1, 1, 1
+	makeText "\nプロダクト キーは、Heondowsが入っているディレクトリの背面か Heondows 購入時のメッセージに記載されています。" :guiProductKeyInfoId.length(guiProductKeyInfoId) = stat
+	makeText "\n\n\nプロダクト キーは次のような形式です: XXX-XXXX-XXXXXXXXX-X-X" :guiProductKeyInfoId.length(guiProductKeyInfoId) = stat
+	makeText "\n\n\nハイフンは自動的に入力されませんし、アプリケーションキーボードなんてものは作ってないし、プロダクトキーを入力するところも別れてません。" :guiProductKeyInfoId.length(guiProductKeyInfoId) = stat
+
+	guiOption 400, 20, GUI_S_SHOW
+	pos , ginfo_cy + 100
+	makeInput ""+ PRODUCT_KEY :guiProductKeyId = stat
+	guiProductKeyInfoId.length(guiProductKeyInfoId) = guiProductKeyId
+	color 255, 0, 0
+	makeText "" :guiWarningProductKeyId = stat
+	guiProductKeyInfoId.length(guiProductKeyInfoId) = guiWarningProductKeyId
+
+	guiOption 340, 20, GUI_S_SHOW
+	pos 0, 440
+	color 0, 0, 175
+	makeButton "プライバシーに関する声明はありません。(P)" :guiProductKeyInfoId.length(guiProductKeyInfoId) = stat
+	
+	repeat length(guiProductKeyInfoId)
+		setGUIParent guiProductKeyInfoId.cnt, guiLayerInstallId.1
+		if GUI_T_INPUT == getGUIObjectType(guiProductKeyInfoId.cnt) :continue
+		setGUIBackAlpha guiProductKeyInfoId.cnt, 0
+	loop
+	watchNextButtonIdList.1 = guiInstallNextId
+	/**/
+	
+	/* install layer 0 */
+	guiOption ginfo_winx, ginfo_winy, GUI_S_SHOW
+	inWindowId.0 = getWindowId(ginfo_dispx, ginfo_dispy)
+	pos 0, 0 :makeWindow "", ginfo_winx, ginfo_winy, inWindowId :guiLayerInstallId.0 = stat
+	
+	colorwhite
+	logoImgId = makeImageBuffer(dir_my + "logo.png")
+	guiOption getWindowWidth(logoImgId), getWindowHeight(logoImgId), GUI_S_SHOW
+	pos (ginfo_winx - getWindowWidth(logoImgId))/2, (ginfo_winy - getWindowHeight(logoImgId))/6 :makeImageButton logoImgId, getWindowWidth(logoImgId), getWindowHeight(logoImgId) :guiLogoId = stat
+	setGUIBackAlpha guiLogoId, 0
+	setGUIParent guiLogoId, guiLayerInstallId.0
+	guiOption 250, 30, GUI_S_SHOW
+	pos (ginfo_winx - 250)/2, (ginfo_winy - 30)/2 :makeButton "今すぐインストール(I)" :guiInstallId = stat
+	setGUIParent guiInstallId, guiLayerInstallId.0
+	guiOption 500, 20, GUI_S_SHOW
+	color 1, 1, 1
+	pos 20, 430 :makeText "コンピューターは修復できません(R)" :guiRecoveryId = stat
+	setGUIBackAlpha guiRecoveryId, 0
+	setGUIParent guiRecoveryId, guiLayerInstallId.0
+	pos 20, 450 :makeText "Copyright 2019 Humi@bass_clef_ All rights reserved." :guiCopyRightId = stat
+	setGUIBackAlpha guiCopyRightId, 0
+	setGUIParent guiCopyRightId, guiLayerInstallId.0
+	watchNextButtonIdList.0 = guiInstallId
+	/**/
+
+	installLayerCount = 0
+	return
+	
+*label_om_boot_desktop
+	desktopImgId = makeImageBuffer(dir_my + "desktop.png")
+	guiOption getWindowWidth(desktopImgId), getWindowHeight(desktopImgId), GUI_S_SHOW
+	pos 0, 0 :makeImageButton desktopImgId, getWindowWidth(desktopImgId), getWindowHeight(desktopImgId) :guiDesktopId = stat
+
+	guiOption ginfo_winx, 20, GUI_S_SHOW
+	inWindowId = getWindowId(ginfo_dispx, ginfo_dispy)
+	pos 0, ginfo_winy - 20 :makeWindow "", ginfo_winx, ginfo_winy, inWindowId :guiTaskBarId = stat
+	
+	guiOption 100, 20, GUI_S_SHOW
+	colorwhite
+	pos 0, 0 :makeButton "スタート" :guiStartId = stat
+	setGUIParent guiStartId, guiTaskBarId
+	
+	mciopen dir_my + "boot.wav", 0, 1
+	mciplay 0, 1000
+	return
+	
